@@ -52,27 +52,44 @@ app.get("/api/wx_openid", async (req, res) => {
 
 // 获取手机号接口
 app.post('/phone', (req, res) => {
-  // 拼接 Header 中的 x-wx-openid 到接口中
-  const api = `http://api.weixin.qq.com/wxa/getopendata?openid=${req.headers['x-wx-openid']}`;
+  const openid = req.headers['x-wx-openid'];
+  if (!openid) {
+    console.error('请求头中缺少 x-wx-openid');
+    res.status(400).send({ code: 400, message: '缺少 x-wx-openid' });
+    return;
+  }
+
+  const api = `https://api.weixin.qq.com/wxa/getopendata?openid=${openid}`;
+  console.log('请求微信开放接口的 URL:', api);
+  console.log('请求体:', JSON.stringify({
+    cloudid_list: [req.body.cloudid],
+  }));
 
   request(api, {
     method: 'POST',
     body: JSON.stringify({
-      cloudid_list: [req.body.cloudid], // 传入需要换取的 CloudID
+      cloudid_list: [req.body.cloudid],
     }),
     headers: {
       'Content-Type': 'application/json',
     },
   }, (err, resp, body) => {
+    if (err) {
+      console.error('请求微信开放接口时发生错误:', err);
+      res.status(500).send({ code: 500, message: '请求微信开放接口时发生错误' });
+      return;
+    }
+
+    console.log('微信开放接口响应状态码:', resp.statusCode);
+    console.log('微信开放接口响应体:', body);
+
     try {
-      const data = JSON.parse(body).data_list[0]; // 从回包中获取手机号信息
+      const data = JSON.parse(body).data_list[0];
       const phone = JSON.parse(data.json).data.phoneNumber;
-      // 将手机号发送回客户端，此处仅供示例
-      // 实际场景中应对手机号进行打码处理，或仅在后端保存使用
-      res.send(phone);
+      res.send({ code: 0, data: phone });
     } catch (error) {
-      console.error('获取手机号时发生错误:', error);
-      res.send('get phone failed');
+      console.error('解析微信开放接口响应时发生错误:', error);
+      res.status(500).send({ code: 500, message: '解析微信开放接口响应时发生错误' });
     }
   });
 });
